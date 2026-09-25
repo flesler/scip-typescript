@@ -28,6 +28,7 @@ checkIndexParser([], {
   inferTsconfig: false,
   output: 'index.scip',
   yarnWorkspaces: false,
+  files: [],
 })
 
 checkIndexParser(['--cwd', 'qux'], { cwd: 'qux' })
@@ -37,5 +38,10 @@ checkIndexParser(['--infer-tsconfig'], { inferTsconfig: true })
 checkIndexParser(['--no-progress-bar'], { progressBar: false })
 checkIndexParser(['--progress-bar'], { progressBar: true })
 checkIndexParser(['--no-global-caches'], { globalCaches: false })
+checkIndexParser(
+  ['pkg/tsconfig.json', '--files', 'src/a.ts', '--files', 'src/b.ts'],
+  { files: ['src/a.ts', 'src/b.ts'] },
+  ['pkg/tsconfig.json']
+)
 
 test.run()

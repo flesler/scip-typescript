@@ -19,6 +19,7 @@ export interface MultiProjectOptions {
   cwd: string
   output: string
   indexedProjects: Set<string>
+  files?: string[]
 }
 
 /** Configuration options to index a single TypeScript project. */
@@ -73,6 +74,12 @@ export function mainCommand(
       '--max-file-byte-size <value>',
       'skip files that have a larger byte size than the provided value. Supported formats: 1kb, 1mb, 1gb.',
       '1mb'
+    )
+    .option(
+      '--files <path>',
+      'only run FileIndexer on these repo-relative paths (repeatable)',
+      (value: string, previous: string[]) => [...previous, value],
+      []
     )
     .argument('[projects...]')
     .action((parsedProjects, parsedOptions) => {

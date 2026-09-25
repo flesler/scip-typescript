@@ -67,6 +67,33 @@ function createCompilerHost(
   return host
 }
 
+/** When --files is set, only use those roots so createProgram skips unrelated project files. */
+export function resolveIndexRootNames(
+  config: ts.ParsedCommandLine,
+  options: ProjectOptions
+): string[] {
+  if (!options.files?.length) {
+    return config.fileNames
+  }
+  const wanted = new Set(options.files)
+  const roots: string[] = []
+  for (const fileName of config.fileNames) {
+    const relative = path
+      .relative(options.cwd, fileName)
+      .split(path.sep)
+      .join('/')
+    if (wanted.has(relative)) {
+      roots.push(fileName)
+    }
+  }
+  if (roots.length === 0) {
+    throw new Error(
+      `--files paths not found in project '${options.projectDisplayName}': ${options.files.join(', ')}`
+    )
+  }
+  return roots
+}
+
 export class ProjectIndexer {
   private program: ts.Program
   private checker: ts.TypeChecker
@@ -78,14 +105,19 @@ export class ProjectIndexer {
     public readonly options: ProjectOptions,
     cache: GlobalCache
   ) {
+    const rootNames = resolveIndexRootNames(config, options)
     const host = createCompilerHost(cache, config.options, options)
-    this.program = ts.createProgram(config.fileNames, config.options, host)
+    this.program = ts.createProgram(rootNames, config.options, host)
     this.checker = this.program.getTypeChecker()
     this.packages = new Packages(options.projectRoot)
   }
   public index(): void {
     const startTimestamp = Date.now()
     const sourceFiles = this.program.getSourceFiles()
+
+    const indexOnly = this.options.files?.length
+      ? new Set(this.options.files)
+      : undefined
 
     const filesToIndex: ts.SourceFile[] = []
     // Visit every sourceFile in the program
@@ -94,12 +126,31 @@ export class ProjectIndexer {
       if (!includes) {
         continue
       }
+      if (indexOnly !== undefined) {
+        const relative = path
+          .relative(this.options.cwd, sourceFile.fileName)
+          .split(path.sep)
+          .join('/')
+        if (!indexOnly.has(relative)) {
+          continue
+        }
+      }
       filesToIndex.push(sourceFile)
     }
 
     if (filesToIndex.length === 0) {
       throw new Error(
         `no indexable files in project '${this.options.projectDisplayName}'`
+      )
+    }
+
+    if (indexOnly !== undefined) {
+      const inProject = new Set(this.config.fileNames)
+      const loaded = sourceFiles.filter(
+        sf => !sf.isDeclarationFile && inProject.has(sf.fileName)
+      )
+      console.error(
+        `partial index: ${filesToIndex.length} document(s), ${loaded.length}/${this.config.fileNames.length} project sources in program`
       )
     }
 

@@ -1,7 +1,16 @@
 import { test } from 'uvu'
 import * as assert from 'uvu/assert'
 
-import { languageForFileName, prettyMilliseconds } from './ProjectIndexer'
+import * as path from 'path'
+
+import * as ts from 'typescript'
+
+import { ProjectOptions } from './CommandLineOptions'
+import {
+  languageForFileName,
+  prettyMilliseconds,
+  resolveIndexRootNames,
+} from './ProjectIndexer'
 
 function minute(x: number): number {
   return x * 60 * 1000
@@ -22,6 +31,43 @@ test('prettyMilliseconds', () => {
   assert.is(prettyMilliseconds(minute(5)), '5m 0s 0ms')
   assert.is(prettyMilliseconds(minute(60)), '60m 0s 0ms')
   assert.is(prettyMilliseconds(minute(5) + second(8) + 999), '5m 8s 999ms')
+})
+
+test('resolveIndexRootNames uses subset when --files is set', () => {
+  const cwd = '/repo'
+  const config: ts.ParsedCommandLine = {
+    options: {},
+    fileNames: [
+      path.join(cwd, 'src/a.ts'),
+      path.join(cwd, 'src/b.ts'),
+      path.join(cwd, 'src/c.ts'),
+    ],
+    errors: [],
+  }
+  const base: ProjectOptions = {
+    cwd,
+    projectRoot: '.',
+    projectDisplayName: 'test',
+    writeIndex: () => {},
+    inferTsconfig: false,
+    progressBar: false,
+    yarnWorkspaces: false,
+    yarnBerryWorkspaces: false,
+    pnpmWorkspaces: false,
+    globalCaches: false,
+    output: 'index.scip',
+    indexedProjects: new Set(),
+    files: [],
+  }
+  assert.equal(resolveIndexRootNames(config, base), config.fileNames)
+  const partial = resolveIndexRootNames(config, {
+    ...base,
+    files: ['src/a.ts', 'src/c.ts'],
+  })
+  assert.equal(partial, [
+    path.join(cwd, 'src/a.ts'),
+    path.join(cwd, 'src/c.ts'),
+  ])
 })
 
 test('languageForFileName', () => {
